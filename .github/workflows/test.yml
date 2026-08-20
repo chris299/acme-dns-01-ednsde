@@ -1,0 +1,35 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [20, 22, 24]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - run: npm install
+
+      # Lint and formatting are checked once; running them per Node version
+      # would only repeat the same answer.
+      - name: lint
+        if: matrix.node == 22
+        run: npm run lint
+
+      # No network, no credentials: the eDNS API and DNS are both stubbed.
+      - name: test
+        run: npm test

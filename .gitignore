@@ -1,0 +1,7 @@
+node_modules/
+package-lock.json
+*.tgz
+.env
+
+# Scratch notes, deliberately not published.
+idea.txt

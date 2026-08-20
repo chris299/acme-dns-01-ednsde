@@ -1,0 +1,49 @@
+{
+  "name": "acme-dns-01-ednsde",
+  "version": "1.0.0",
+  "description": "eDNS.de DNS-01 challenge plugin for ACME.js, Greenlock.js and the ioBroker ACME adapter — Let's Encrypt certificates, wildcards included, for zones hosted at edns.de",
+  "main": "index.js",
+  "types": "index.d.ts",
+  "files": [
+    "index.js",
+    "index.d.ts",
+    "lib/"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test \"test/**/*.test.js\"",
+    "test:integration": "node --env-file-if-exists=.env integration.js",
+    "lint": "eslint . && prettier --check .",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "acme-dns-01",
+    "dns-01",
+    "acme",
+    "letsencrypt",
+    "greenlock",
+    "certificate",
+    "wildcard",
+    "edns",
+    "ednsde",
+    "edns.de",
+    "iobroker"
+  ],
+  "author": "Christoph Winkler",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/chris299/acme-dns-01-ednsde.git"
+  },
+  "bugs": {
+    "url": "https://github.com/chris299/acme-dns-01-ednsde/issues"
+  },
+  "homepage": "https://github.com/chris299/acme-dns-01-ednsde#readme",
+  "devDependencies": {
+    "acme-dns-01-test": "^3.3.2",
+    "eslint": "^9.39.0",
+    "prettier": "^3.6.2"
+  }
+}

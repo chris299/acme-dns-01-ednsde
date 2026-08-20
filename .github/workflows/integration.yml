@@ -1,0 +1,38 @@
+name: Integration
+
+# Deliberately manual. These tests authenticate with a real eDNS access token
+# and create records in a real, production DNS zone -- there is no separate test
+# zone. Running them on every push would put credentials into every build and
+# leave stray records behind whenever a run is cancelled.
+on:
+  workflow_dispatch:
+    inputs:
+      zone:
+        description: The eDNS zone to test against
+        required: true
+        default: winkler.tel
+
+permissions:
+  contents: read
+
+jobs:
+  integration:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install
+
+      - name: acme-dns-01 compliance harness against a live zone
+        env:
+          EDNS_TOKEN: ${{ secrets.EDNS_TOKEN }}
+        run: |
+          if [ -z "$EDNS_TOKEN" ]; then
+            echo "The EDNS_TOKEN repository secret is not set."
+            exit 1
+          fi
+          node integration.js "${{ inputs.zone }}"
