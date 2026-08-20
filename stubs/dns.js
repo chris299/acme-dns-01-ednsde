@@ -12,18 +12,19 @@ function dnsError(code) {
 // a few rounds of polling.
 function createStubDns(spec) {
 	const soa = new Set(spec.soa || []);
+	const soaMinimum = spec.soaMinimum ?? 300;
 	const ns = spec.ns || {};
 	const addresses = spec.addresses || {};
 	const txt = spec.txt || {};
-	const calls = { hasSoa: [], nameservers: [], txtAt: [] };
+	const calls = { soa: [], nameservers: [], txtAt: [] };
 	const txtCounts = new Map();
 
 	return {
 		calls,
 
-		async hasSoa(name) {
-			calls.hasSoa.push(name);
-			return soa.has(name);
+		async soa(name) {
+			calls.soa.push(name);
+			return soa.has(name) ? { nsname: `ns.${name}`, minttl: soaMinimum } : null;
 		},
 
 		async nameservers(zone) {
@@ -36,6 +37,27 @@ function createStubDns(spec) {
 
 		async addresses(name) {
 			return addresses[name] || [];
+		},
+
+		// Keyed by "system|<host>", so a test can let the configured resolver
+		// see something the nameservers refuse to answer for.
+		async txtSystem(host) {
+			const key = `system|${host}`;
+			calls.txtAt.push(key);
+			const count = (txtCounts.get(key) || 0) + 1;
+			txtCounts.set(key, count);
+
+			let value = txt[key];
+			if (typeof value === 'function') {
+				value = value(count);
+			}
+			if (value instanceof Error) {
+				throw value;
+			}
+			if (!value) {
+				throw dnsError('ENOTFOUND');
+			}
+			return value;
 		},
 
 		async txtAt(server, host) {

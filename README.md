@@ -170,3 +170,23 @@ EDNS_TOKEN=... npm run test:integration winkler.tel
 ## Licence
 
 MIT © Christoph Winkler
+
+## When direct DNS queries are not possible
+
+Verifying propagation means asking the zone's authoritative nameservers on port 53. Not every host
+may: corporate firewalls and providers that intercept DNS block it, and then _no_ external
+nameserver answers — not the zone's, not `1.1.1.1`.
+
+The plugin notices this on its first attempt and falls back to whatever resolver the host is
+configured to use. That works, but it changes the timing, because a caching resolver holds the
+"this name does not exist" answer for the zone's SOA minimum:
+
+- the first question is asked after 30 seconds rather than immediately — an earlier one would only
+  cache a miss and make the whole wait pointless
+- further questions follow at the SOA minimum, since a sooner one just re-reads that cache
+- the time budget comes from the zone's SOA minimum instead of `propagationTimeout`, because a
+  shorter one cannot succeed
+
+So a first issuance behind a blocked port 53 takes minutes where a direct check takes about 23
+seconds. If you can, allow outbound DNS to the zone's nameservers — and keep the SOA minimum low
+either way. Details in [docs/adr/0004](docs/adr/0004-fallback-auf-den-konfigurierten-resolver.md).

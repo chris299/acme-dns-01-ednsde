@@ -23,3 +23,8 @@ pollt ausschließlich autoritativ und wartet bewusst _nicht_ zusätzlich darauf,
 den Record sieht. Auf den System-Resolver zu warten hieße, sich freiwillig an den Negative Cache zu
 ketten — mit unbegrenzter Wartezeit und nichtssagender Fehlermeldung im Fehlerfall. Auf alten Adaptern
 deckt die zusätzliche Wartezeit den OS-Resolver in der Praxis mit ab: langsamer, aber korrekt.
+
+## Nachtrag: die Voraussetzung gilt nicht überall
+
+Direkt zu fragen setzt voraus, dass der Host Port 53 nach außen darf. Wo das nicht gilt, greift
+[ADR 0004](./0004-fallback-auf-den-konfigurierten-resolver.md).

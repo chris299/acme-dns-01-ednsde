@@ -98,16 +98,16 @@ test('zones normalises an IDN host before walking', async () => {
 	await withPresenter(spec, null, async ({ presenter, dns }) => {
 		const zones = await presenter.zones({ dnsHosts: ['foo.你好.example.com'] });
 		assert.deepEqual(zones, ['xn--6qq79v.example.com']);
-		assert.ok(dns.calls.hasSoa.every(name => !/[^\x20-\x7e]/.test(name)));
+		assert.ok(dns.calls.soa.every(name => !/[^\x20-\x7e]/.test(name)));
 	});
 });
 
 test('zones caches a determined zone and does not walk the same host twice', async () => {
 	await withPresenter(baseDnsSpec(), null, async ({ presenter, dns }) => {
 		await presenter.zones({ dnsHosts: ['ab.foo.example.com'] });
-		const afterFirst = dns.calls.hasSoa.length;
+		const afterFirst = dns.calls.soa.length;
 		await presenter.zones({ dnsHosts: ['ab.foo.example.com'] });
-		assert.equal(dns.calls.hasSoa.length, afterFirst);
+		assert.equal(dns.calls.soa.length, afterFirst);
 	});
 });
 
@@ -120,7 +120,7 @@ test('an explicit zones option short-circuits the walk entirely', async () => {
 				await presenter.zones({ dnsHosts: ['ab.foo.example.com'] }),
 				['example.com'],
 			);
-			assert.equal(dns.calls.hasSoa.length, 0);
+			assert.equal(dns.calls.soa.length, 0);
 		},
 		{ zones: ['example.com'] },
 	);
@@ -199,7 +199,7 @@ test('set trusts the zone acme.js announces and skips the walk', async () => {
 		() => ok('addChallengeRecord', 1, 'added'),
 		async ({ presenter, dns }) => {
 			await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) });
-			assert.equal(dns.calls.hasSoa.length, 0);
+			assert.equal(dns.calls.soa.length, 0);
 		},
 	);
 });
@@ -344,4 +344,134 @@ test('init takes nothing and returns null', async () => {
 	await withPresenter(baseDnsSpec(), null, ({ presenter }) => {
 		assert.equal(presenter.init({ request: () => {} }), null);
 	});
+});
+
+test('a nameserver reachable over two address families counts once', async () => {
+	const spec = baseDnsSpec(servingEverywhere(HOST, [DIGEST]));
+	// Both families announced; only the v4 address is ever queried.
+	spec.addresses = {
+		'ns3.edns.de': ['10.0.0.3'],
+		'ns4.edns.de': ['10.0.0.4'],
+	};
+	await withPresenter(
+		spec,
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter, dns }) => {
+			await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) });
+			const queried = new Set(dns.calls.txtAt.map(call => call.split('|')[0]));
+			assert.deepEqual([...queried].sort(), ['10.0.0.3', '10.0.0.4']);
+		},
+	);
+});
+
+test('when no nameserver answers at all, the configured resolver takes over', async () => {
+	const txt = {
+		[`10.0.0.3|${HOST}`]: dnsError('ETIMEOUT'),
+		[`10.0.0.4|${HOST}`]: dnsError('ETIMEOUT'),
+		[`system|${HOST}`]: [DIGEST],
+	};
+	await withPresenter(
+		baseDnsSpec(txt),
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			const started = Date.now();
+			assert.equal(
+				await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) }),
+				true,
+			);
+			// The fallback must engage on the first round, not after the strict
+			// half of the budget has been burnt.
+			assert.ok(Date.now() - started < 150, 'should not wait out the strict half');
+		},
+		{ fallbackFirstQuery: 20 },
+	);
+});
+
+test('the fallback asks late, so an early miss cannot poison the answer', async () => {
+	// The record only shows up on the second query. With an immediate first
+	// question a caching resolver would hold the NXDOMAIN for the whole SOA
+	// minimum, so the wait has to start after the propagation window.
+	const txt = {
+		[`10.0.0.3|${HOST}`]: dnsError('ETIMEOUT'),
+		[`10.0.0.4|${HOST}`]: dnsError('ETIMEOUT'),
+		[`system|${HOST}`]: count => (count >= 2 ? [DIGEST] : null),
+	};
+	const spec = baseDnsSpec(txt);
+	spec.soaMinimum = 0.05;
+	await withPresenter(
+		spec,
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter, dns }) => {
+			await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) });
+			const systemQueries = dns.calls.txtAt.filter(call =>
+				call.startsWith('system|'),
+			);
+			assert.equal(systemQueries.length, 2);
+		},
+		{ fallbackFirstQuery: 20 },
+	);
+});
+
+test('a blocked port 53 is reported as such, and names the SOA minimum it obeyed', async () => {
+	const txt = {
+		[`10.0.0.3|${HOST}`]: dnsError('ETIMEOUT'),
+		[`10.0.0.4|${HOST}`]: dnsError('ETIMEOUT'),
+	};
+	const spec = baseDnsSpec(txt);
+	spec.soaMinimum = 0.1;
+	await withPresenter(
+		spec,
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			const err = await presenter
+				.set({ challenge: challenge({ dnsZone: 'example.com' }) })
+				.then(
+					() => null,
+					e => e,
+				);
+			assert.match(err.message, /block outbound DNS on port 53/);
+			assert.match(err.message, /10\.0\.0\.3, 10\.0\.0\.4/);
+			assert.match(err.message, new RegExp(DIGEST));
+			assert.match(err.message, /SOA minimum of 0\.1s/);
+		},
+		{ fallbackFirstQuery: 20 },
+	);
+});
+
+test('a failed wait removes the record it had just created', async () => {
+	const actions = [];
+	await withPresenter(
+		baseDnsSpec(),
+		body => {
+			actions.push(body.action);
+			return body.action === 'removeChallengeRecord'
+				? ok('removeChallengeRecord', 3, 'removed')
+				: ok('addChallengeRecord', 1, 'added');
+		},
+		async ({ presenter }) => {
+			await assert.rejects(() =>
+				presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) }),
+			);
+			assert.deepEqual(actions, ['addChallengeRecord', 'removeChallengeRecord']);
+		},
+	);
+});
+
+test('the propagation failure survives a cleanup that also fails', async () => {
+	await withPresenter(
+		baseDnsSpec(),
+		body =>
+			body.action === 'removeChallengeRecord'
+				? { status: 500, body: { status: 500, message: 'boom', data: [] } }
+				: ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			const err = await presenter
+				.set({ challenge: challenge({ dnsZone: 'example.com' }) })
+				.then(
+					() => null,
+					e => e,
+				);
+			assert.match(err.message, /was not served by all authoritative nameservers/);
+		},
+	);
 });
