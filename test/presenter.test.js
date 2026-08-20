@@ -475,3 +475,31 @@ test('the propagation failure survives a cleanup that also fails', async () => {
 		},
 	);
 });
+
+test('get falls back to the configured resolver when no nameserver answers', async () => {
+	const txt = {
+		[`10.0.0.3|${HOST}`]: dnsError('ETIMEOUT'),
+		[`10.0.0.4|${HOST}`]: dnsError('ETIMEOUT'),
+		[`system|${HOST}`]: [OTHER_DIGEST, DIGEST],
+	};
+	await withPresenter(baseDnsSpec(txt), null, async ({ presenter }) => {
+		const result = await presenter.get({
+			challenge: challenge({ dnsZone: 'example.com' }),
+		});
+		assert.equal(result.dnsAuthorization, DIGEST);
+	});
+});
+
+test('get still reports null for a foreign digest seen through the resolver', async () => {
+	const txt = {
+		[`10.0.0.3|${HOST}`]: dnsError('ETIMEOUT'),
+		[`10.0.0.4|${HOST}`]: dnsError('ETIMEOUT'),
+		[`system|${HOST}`]: [OTHER_DIGEST],
+	};
+	await withPresenter(baseDnsSpec(txt), null, async ({ presenter }) => {
+		assert.equal(
+			await presenter.get({ challenge: challenge({ dnsZone: 'example.com' }) }),
+			null,
+		);
+	});
+});
