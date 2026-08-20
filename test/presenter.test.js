@@ -4,8 +4,8 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { create } = require('../lib/presenter');
-const { startStubApi, ok } = require('./helpers/stub-api');
-const { createStubDns, dnsError } = require('./helpers/stub-dns');
+const { startStubApi, ok } = require('../stubs/api');
+const { createStubDns, dnsError } = require('../stubs/dns');
 
 const DIGEST = 'kzGkkjrcHhVWEwoc7bwpFywxKtFhBvOZ0hCEwXVSVAg';
 const OTHER_DIGEST = 'Xy7bQeRtY1uIoP2aSdFgH3jKlZxCvBnM4qWeRtY6uIo';

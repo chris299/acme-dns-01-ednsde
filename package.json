@@ -13,7 +13,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "test": "node --test \"test/**/*.test.js\"",
+    "test": "node --test",
     "test:integration": "node --env-file-if-exists=.env integration.js",
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write ."

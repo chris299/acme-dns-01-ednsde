@@ -4,7 +4,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const { createApiClient, ApiError } = require('../lib/api');
-const { startStubApi, ok, fail } = require('./helpers/stub-api');
+const { startStubApi, ok, fail } = require('../stubs/api');
 
 const DIGEST = 'kzGkkjrcHhVWEwoc7bwpFywxKtFhBvOZ0hCEwXVSVAg';
 
