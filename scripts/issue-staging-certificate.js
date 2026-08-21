@@ -30,8 +30,12 @@ const pkg = require('../package.json');
 
 const STAGING = 'https://acme-staging-v02.api.letsencrypt.org/directory';
 
+const DEBUG = process.env.ACME_DEBUG === '1';
+
+// ACME.js reports through notify(). Errors and warnings always matter; the rest
+// is only worth the noise when something has to be diagnosed.
 function notify(event, message) {
-	if (event === 'error' || event === 'warning') {
+	if (DEBUG || event === 'error' || event === 'warning') {
 		console.warn(`  acme ${event}: ${JSON.stringify(message)}`);
 	}
 }
@@ -77,7 +81,7 @@ async function main() {
 		maintainerEmail: email,
 		packageAgent: `${pkg.name}/${pkg.version}`,
 		notify,
-		debug: false,
+		debug: DEBUG,
 	});
 
 	// init() first, so acme.js knows which challenge types it can check, then
@@ -151,6 +155,13 @@ async function main() {
 
 main().catch(err => {
 	console.error(`\nFAIL ${err.message}`);
+	// ACME.js folds the server's problem document into the message, but its own
+	// fields carry the rest of the story.
+	for (const key of ['code', 'type', 'detail', 'status', 'urn', 'description']) {
+		if (err[key] !== undefined) {
+			console.error(`  ${key}: ${JSON.stringify(err[key])}`);
+		}
+	}
 	if (err.stack) {
 		console.error(err.stack);
 	}

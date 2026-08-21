@@ -10,6 +10,10 @@ on:
         description: Domains for the certificate, space separated
         required: true
         default: winkler.tel *.winkler.tel
+      debug:
+        description: Log every ACME.js notification (1 = yes)
+        required: false
+        default: '0'
 
 permissions:
   contents: read
@@ -32,6 +36,7 @@ jobs:
           EDNS_TOKEN: ${{ secrets.EDNS_TOKEN }}
           ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
           DOMAINS: ${{ inputs.domains }}
+          ACME_DEBUG: ${{ inputs.debug }}
         run: |
           for name in EDNS_TOKEN ACME_EMAIL; do
             if [ -z "${!name}" ]; then

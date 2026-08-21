@@ -48,7 +48,7 @@
     "@root/pem": "^1.0.4",
     "acme": "^3.0.3",
     "acme-dns-01-test": "^3.3.2",
-    "eslint": "^9.39.0",
-    "prettier": "^3.6.2"
+    "eslint": "^10.8.1",
+    "prettier": "^3.9.6"
   }
 }
