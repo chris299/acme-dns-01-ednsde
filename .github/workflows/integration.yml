@@ -19,9 +19,9 @@ jobs:
   integration:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -30,9 +30,10 @@ jobs:
       - name: acme-dns-01 compliance harness against a live zone
         env:
           EDNS_TOKEN: ${{ secrets.EDNS_TOKEN }}
+          ZONE: ${{ inputs.zone }}
         run: |
           if [ -z "$EDNS_TOKEN" ]; then
             echo "The EDNS_TOKEN repository secret is not set."
             exit 1
           fi
-          node integration.js "${{ inputs.zone }}"
+          node integration.js "$ZONE"

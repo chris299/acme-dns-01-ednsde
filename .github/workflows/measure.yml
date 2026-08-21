@@ -1,0 +1,41 @@
+name: Measure propagation
+
+# A diagnostic, not a test. It writes to a real zone with a real token, so it
+# only ever runs on request. The prefix is the knob worth turning: a two-label
+# prefix exercises a different path in the eDNS API than a single-label one.
+on:
+  workflow_dispatch:
+    inputs:
+      zone:
+        description: The eDNS zone to measure against
+        required: true
+        default: winkler.tel
+      prefix:
+        description: Record prefix to test (empty = random single label)
+        required: false
+        default: ''
+
+permissions:
+  contents: read
+
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: measure
+        env:
+          EDNS_TOKEN: ${{ secrets.EDNS_TOKEN }}
+          ZONE: ${{ inputs.zone }}
+          PREFIX: ${{ inputs.prefix }}
+        run: |
+          if [ -z "$EDNS_TOKEN" ]; then
+            echo "The EDNS_TOKEN repository secret is not set."
+            exit 1
+          fi
+          node scripts/measure-propagation.js "$ZONE" $PREFIX
