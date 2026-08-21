@@ -18,7 +18,7 @@
     "lint": "eslint . && prettier --check .",
     "format": "prettier --write .",
     "test:certificate": "node --env-file-if-exists=.env scripts/issue-staging-certificate.js",
-    "acme:fixed": "npm install --no-save @root/acme@git+https://git.rootprojects.org/root/acme.js.git#v3.1.1"
+    "acme:fixed": "node scripts/apply-acme-patch.js"
   },
   "keywords": [
     "acme-dns-01",

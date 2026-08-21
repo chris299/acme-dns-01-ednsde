@@ -191,8 +191,8 @@ rejects the repeats with 409 and 403. Fetch it first:
 npm run acme:fixed
 ```
 
-It is kept out of `package.json` on purpose — that git host is not reliably reachable, and no other
-test should depend on it. The mechanism and the evidence are in
+`acme:fixed` applies upstream's own diff from `patches/`, so it needs no network: that git host is
+not reliably reachable, and no other test should depend on it. The mechanism and the evidence are in
 [docs/acme-js-incompatibilities.md](docs/acme-js-incompatibilities.md); it matters to anyone using
 ACME.js from npm, not only to this plugin.
 

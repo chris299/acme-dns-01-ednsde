@@ -35,25 +35,12 @@ jobs:
 
       - run: npm install
 
-      # Only this workflow needs @root/acme, and only the unpublished 3.1.1 will
-      # do -- see docs/acme-js-incompatibilities.md. It comes from a
-      # self-hosted Gitea that is not always reachable, so it is fetched here
-      # rather than in package.json, with retries, and it stays out of the way
-      # of every other workflow's install.
-      - name: install the fixed @root/acme 3.1.1
-        run: |
-          for attempt in 1 2 3; do
-            if npm run acme:fixed; then
-              break
-            fi
-            if [ "$attempt" = 3 ]; then
-              echo "git.rootprojects.org did not answer after 3 attempts."
-              exit 1
-            fi
-            echo "attempt $attempt failed, retrying in 15s"
-            sleep 15
-          done
-          node -e "console.log('@root/acme', require('@root/acme/package.json').version)"
+      # ACME.js from npm cannot finish an order against today's Boulder. The
+      # fix is upstream's own, tagged v3.1.1 and never published; the patch is
+      # in patches/ so this needs no network and no unreliable git host. See
+      # docs/acme-js-incompatibilities.md. Only this workflow uses ACME.js.
+      - name: bring @root/acme up to 3.1.1
+        run: npm run acme:fixed
 
       - name: issue a staging certificate
         env:
