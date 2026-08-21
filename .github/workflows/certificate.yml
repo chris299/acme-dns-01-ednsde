@@ -14,6 +14,10 @@ on:
         description: Log every ACME.js notification (1 = yes)
         required: false
         default: '0'
+      retry_interval:
+        description: ACME.js retryInterval in ms (empty = its own 1000)
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -37,6 +41,7 @@ jobs:
           ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
           DOMAINS: ${{ inputs.domains }}
           ACME_DEBUG: ${{ inputs.debug }}
+          ACME_RETRY_INTERVAL: ${{ inputs.retry_interval }}
         run: |
           for name in EDNS_TOKEN ACME_EMAIL; do
             if [ -z "${!name}" ]; then

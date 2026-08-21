@@ -92,6 +92,18 @@ async function main() {
 		console.log('skipChallengeTest  true (the plugin verifies propagation itself)');
 	}
 
+	// ACME.js treats a challenge that comes back "pending" from the trigger POST
+	// as impossible ("this state should never occur", acme.js:764) and triggers
+	// it a second time. Today's Boulder answers that second trigger with 409,
+	// which ACME.js then reads as a challenge status and gives up on. It waits
+	// retryInterval in between, so a longer one means the retry lands after
+	// validation has finished rather than while it is running. Whether that
+	// helps is exactly what this knob is for.
+	if (process.env.ACME_RETRY_INTERVAL) {
+		acme.retryInterval = Number(process.env.ACME_RETRY_INTERVAL);
+		console.log(`retryInterval      ${acme.retryInterval} ms`);
+	}
+
 	console.log('\nregistering a fresh ACME account');
 	const accountKeypair = await Keypairs.generate({ kty: 'EC', format: 'jwk' });
 	const accountKey = accountKeypair.private;
