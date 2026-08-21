@@ -52,6 +52,14 @@ try {
 if (!fs.readFileSync(TARGET, 'utf8').includes(MARKER)) {
 	fail('the patch applied but the expected change is not there');
 }
-console.log(
-	`@root/acme ${installed} patched to 3.1.1 behaviour (polls with POST-as-GET)`,
-);
+
+// The patched acme.js is byte-identical to upstream v3.1.1, and upstream's own
+// 3.1.1 release is that file plus this version bump. Leaving the manifest at
+// 3.1.0 would make `npm ls` report a version whose behaviour is not installed,
+// which is exactly the kind of thing that costs somebody an afternoon.
+const manifestPath = path.join('node_modules', '@root', 'acme', 'package.json');
+const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+manifest.version = '3.1.1';
+fs.writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+
+console.log(`@root/acme ${installed} patched to upstream 3.1.1 (polls with POST-as-GET)`);
