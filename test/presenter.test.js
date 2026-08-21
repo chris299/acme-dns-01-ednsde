@@ -503,3 +503,75 @@ test('get still reports null for a foreign digest seen through the resolver', as
 		);
 	});
 });
+
+test('a name that already carries other values gets the longer budget', async () => {
+	// eDNS answers such a name from its 300s record cache, so the added value
+	// only becomes visible once that expires. Here it shows up after a delay
+	// that the ordinary budget would not have survived.
+	let round = 0;
+	const txt = {};
+	for (const server of NS) {
+		txt[`${server}|${HOST}`] = count => {
+			round = Math.max(round, count);
+			return count >= 8 ? [OTHER_DIGEST, DIGEST] : [OTHER_DIGEST];
+		};
+	}
+	await withPresenter(
+		baseDnsSpec(txt),
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			assert.equal(
+				await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) }),
+				true,
+			);
+			assert.ok(round >= 8, 'should have polled past the ordinary budget');
+		},
+		// The ordinary budget expires after ~4 polls; the shared-name one does not.
+		{ propagationTimeout: 40, sharedNameTimeout: 2000 },
+	);
+});
+
+test('a fresh name keeps the ordinary budget', async () => {
+	// Nothing at the name at all, so there is no cache to wait out and the
+	// longer budget must not apply.
+	await withPresenter(
+		baseDnsSpec(),
+		body =>
+			body.action === 'removeChallengeRecord'
+				? ok('removeChallengeRecord', 3, 'removed')
+				: ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			const started = Date.now();
+			await assert.rejects(() =>
+				presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) }),
+			);
+			assert.ok(
+				Date.now() - started < 1000,
+				'should not have waited out the shared-name budget',
+			);
+		},
+		{ propagationTimeout: 40, sharedNameTimeout: 60000 },
+	);
+});
+
+test('the shared-name timeout explains itself in the failure message', async () => {
+	const txt = {};
+	for (const server of NS) {
+		txt[`${server}|${HOST}`] = [OTHER_DIGEST];
+	}
+	await withPresenter(
+		baseDnsSpec(txt),
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			const err = await presenter
+				.set({ challenge: challenge({ dnsZone: 'example.com' }) })
+				.then(
+					() => null,
+					e => e,
+				);
+			assert.match(err.message, /300s record cache/);
+			assert.doesNotMatch(err.message, /SOA minimum/);
+		},
+		{ propagationTimeout: 40, sharedNameTimeout: 120 },
+	);
+});

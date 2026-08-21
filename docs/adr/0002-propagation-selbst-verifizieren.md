@@ -28,3 +28,21 @@ deckt die zusätzliche Wartezeit den OS-Resolver in der Praxis mit ab: langsamer
 
 Direkt zu fragen setzt voraus, dass der Host Port 53 nach außen darf. Wo das nicht gilt, greift
 [ADR 0004](./0004-fallback-auf-den-konfigurierten-resolver.md).
+
+## Nachtrag: das Zeitbudget richtet sich nach dem, was am Namen schon liegt
+
+Gemessen mit `scripts/measure-propagation.js` gegen `winkler.tel`: der erste Wert auf einem neuen
+Namen ist nach 23–27 s auf allen Nameservern sichtbar, ein **zweiter Wert auf einem Namen, der schon
+einen trägt, erst nach ~301 s**. eDNS bedient Challenge-Records aus einem Cache mit der Record-TTL
+von 300 s vor den Nameservern; ein hinzugefügter Wert wird erst sichtbar, wenn der abläuft. Dieselbe
+Ursache erklärt die ~307 s beim Entfernen.
+
+Das trifft nicht einen Sonderfall, sondern den Normalfall: ein SAN-Zertifikat über `example.com` und
+`*.example.com` legt zwei Werte auf denselben Namen. Ein festes Budget von 120 s würde dort
+_zuverlässig_ scheitern — was es in der CI auch getan hat.
+
+Das Warten prüft deshalb in der ersten Runde, ob der Name schon Werte trägt, die nicht unsere sind,
+und verlängert das Budget in diesem Fall auf 360 s. Eine erste Ausstellung auf einem frischen Namen
+behält das kurze Budget, damit nichts langsamer wird, was nicht langsamer sein muss. Die
+Fehlermeldung nennt in beiden Fällen die jeweils passende Ursache — den Cache oder das SOA-Minimum,
+nie beides.

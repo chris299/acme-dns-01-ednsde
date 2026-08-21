@@ -116,13 +116,21 @@ dig +short SOA example.com | awk '{print "negative TTL:", $NF}'
 
 At 86400 a first issuance can stall for a day. At 300 it costs at most five minutes, once.
 
-**Timing, measured against a live zone** (`winkler.tel`, nameservers `ns3`/`ns4.edns.de`):
+**Timing, measured against a live zone** (`winkler.tel`, nameservers `ns3`/`ns4.edns.de`, with
+`scripts/measure-propagation.js`):
 
-| Operation                                | Visible on all authoritative nameservers after |
-| ---------------------------------------- | ---------------------------------------------- |
-| add, on a name that did not exist before | ~23 s                                          |
-| add, on a name that already has records  | immediately                                    |
-| remove                                   | ~307 s                                         |
+| Operation                                       | Visible on all authoritative nameservers after |
+| ----------------------------------------------- | ---------------------------------------------- |
+| add, on a name that did not exist before        | 23–27 s                                        |
+| **add, on a name that already carries a value** | **~301 s**                                     |
+| remove                                          | ~307 s                                         |
+
+That middle row is the one to know about. eDNS serves challenge records from a cache with the
+record's own 300 s TTL in front of its nameservers, so a _second_ value on a name is invisible until
+that cache expires — and a SAN certificate covering both `example.com` and `*.example.com` puts
+exactly two values on one name. The plugin notices this on its first check (the name answers, but
+with values that are not ours) and extends its wait to cover the TTL. A first issuance for a fresh
+name keeps the short budget, so nothing slows down that does not have to.
 
 **`get()` reports `null` right after a removal, even while DNS still serves the record.** That
 removal figure above is almost exactly the 300 s record TTL: eDNS keeps answering with the record
