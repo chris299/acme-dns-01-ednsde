@@ -126,6 +126,12 @@ At 86400 a first issuance can stall for a day. At 300 it costs at most five minu
 | **add, on a name that already carries a value** | **~301 s**                                     |
 | remove                                          | ~307 s                                         |
 
+Budget for twice that many records: ACME.js runs a dry pass first, with
+`_greenlock-dryrun-*` names of its own, before it touches `_acme-challenge`. Measured through the
+ioBroker adapter, a certificate covering a domain and its wildcard costs about seven minutes end to
+end — two dry-run names at ~23 s each, then the real name twice, the second of which waits out the
+cache below.
+
 That middle row is the one to know about. eDNS serves challenge records from a cache with the
 record's own 300 s TTL in front of its nameservers, so a _second_ value on a name is invisible until
 that cache expires — and a SAN certificate covering both `example.com` and `*.example.com` puts
