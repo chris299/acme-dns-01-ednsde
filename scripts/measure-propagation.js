@@ -11,10 +11,13 @@
 //
 //   EDNS_TOKEN=... node scripts/measure-propagation.js winkler.tel
 //   EDNS_TOKEN=... node scripts/measure-propagation.js winkler.tel _probe.foo
+//   EDNS_TOKEN=... node scripts/measure-propagation.js winkler.tel _probe _probe.foo
 //
-// The second argument is the prefix to test, which is the interesting knob: a
-// prefix with two labels exercises a different path in the API than one with a
-// single label.
+// Every argument after the zone is a prefix to test. They are added one after
+// another and all kept alive until the end, which is what makes more than one
+// interesting: the ACME test harness reuses the same leftmost label across the
+// names of one certificate, so a second record can meet a first one that is
+// still in place.
 
 const crypto = require('node:crypto');
 
@@ -93,12 +96,15 @@ async function watch(dns, servers, host, value, wanted, budget, started) {
 
 async function main() {
 	const zone = toAscii(process.argv[2] || process.env.EDNS_TEST_ZONE || '');
-	const prefix = process.argv[3] || `_measure-${crypto.randomBytes(2).toString('hex')}`;
+	const prefixes = process.argv.slice(3);
+	if (!prefixes.length) {
+		prefixes.push(`_measure-${crypto.randomBytes(2).toString('hex')}`);
+	}
 	const token = process.env.EDNS_TOKEN;
 
 	if (!zone) {
 		console.error(
-			'Usage: EDNS_TOKEN=... node scripts/measure-propagation.js <zone> [prefix]',
+			'Usage: EDNS_TOKEN=... node scripts/measure-propagation.js <zone> [prefix...]',
 		);
 		process.exit(2);
 	}
@@ -107,72 +113,71 @@ async function main() {
 		process.exit(2);
 	}
 
-	const value = crypto.randomBytes(32).toString('base64url');
-	const host = `${prefix}.${zone}`;
 	const api = createApiClient({ token });
 	const dns = createDnsClient({});
-
 	const servers = await serversOf(dns, zone);
+
 	console.log(`zone        ${zone}`);
-	console.log(`prefix      ${prefix}  (${prefix.split('.').length} label(s))`);
-	console.log(`host        ${host}`);
-	console.log(`value       ${value} (${value.length} chars)`);
 	console.log(`nameservers ${servers.map(s => `${s.name}=${s.address}`).join(', ')}`);
-	console.log('');
 
-	let created = false;
+	const created = [];
+	let allAppeared = true;
+
 	try {
-		const started = Date.now();
-		await api.add(zone, prefix, value);
-		created = true;
-		console.log(`  ${stamp(started)}  addChallengeRecord accepted`);
+		for (const prefix of prefixes) {
+			const value = crypto.randomBytes(32).toString('base64url');
+			const host = `${prefix}.${zone}`;
+			console.log('');
+			console.log(`── ${host}  (${prefix.split('.').length} label prefix)`);
+			console.log(`   value ${value}`);
 
-		const appeared = await watch(
-			dns,
-			servers,
-			host,
-			value,
-			true,
-			APPEAR_BUDGET,
-			started,
-		);
-		console.log('');
-		console.log(
-			appeared
-				? 'RESULT appeared on all nameservers'
-				: 'RESULT did NOT appear everywhere',
-		);
+			const started = Date.now();
+			await api.add(zone, prefix, value);
+			created.push({ prefix, value, host });
+			console.log(`  ${stamp(started)}  addChallengeRecord accepted`);
 
-		const removeStarted = Date.now();
-		await api.remove(zone, prefix, value);
-		created = false;
-		console.log('');
-		console.log(`  ${stamp(removeStarted)}  removeChallengeRecord accepted`);
-		const gone = await watch(
-			dns,
-			servers,
-			host,
-			value,
-			false,
-			DISAPPEAR_BUDGET,
-			removeStarted,
-		);
-		console.log('');
-		console.log(
-			gone
-				? 'RESULT disappeared from all nameservers'
-				: `RESULT still served after ${DISAPPEAR_BUDGET / 1000}s (expected: removal takes about the record TTL)`,
-		);
-
-		process.exitCode = appeared ? 0 : 1;
-	} finally {
-		if (created) {
-			console.log('cleaning up the record this run created');
-			await api.remove(zone, prefix, value).catch(err => {
-				console.error(`could not clean up ${host}: ${err.message}`);
-				console.error(`remove it by hand, value: ${value}`);
-			});
+			const appeared = await watch(
+				dns,
+				servers,
+				host,
+				value,
+				true,
+				APPEAR_BUDGET,
+				started,
+			);
+			allAppeared = allAppeared && appeared;
+			console.log(
+				appeared
+					? `  RESULT ${host} appeared on all nameservers`
+					: `  RESULT ${host} did NOT appear everywhere`,
+			);
 		}
+
+		console.log('');
+		console.log(
+			allAppeared
+				? 'RESULT all prefixes appeared'
+				: 'RESULT at least one prefix never appeared',
+		);
+		process.exitCode = allAppeared ? 0 : 1;
+	} finally {
+		for (const record of created) {
+			const removeStarted = Date.now();
+			const gone = await api
+				.remove(zone, record.prefix, record.value)
+				.then(() => true)
+				.catch(err => {
+					console.error(`could not remove ${record.host}: ${err.message}`);
+					console.error(`remove it by hand, value: ${record.value}`);
+					return false;
+				});
+			if (gone) {
+				console.log(`  ${stamp(removeStarted)}  removed ${record.host}`);
+			}
+		}
+		console.log(
+			`removal takes about the record TTL to leave DNS; ${DISAPPEAR_BUDGET / 1000}s of watching is not enough to see it, so this run does not wait.`,
+		);
 	}
 }
 
