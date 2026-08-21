@@ -104,6 +104,31 @@ The realistic options there, in increasing order of commitment:
    [issue #169](https://github.com/iobroker-community-adapters/ioBroker.acme/issues/169), with
    `acme-client` named as the candidate.
 
+### A fourth option: replace the two functions at run time
+
+Both broken functions are plain properties on the object `require('acme')` returns, and both are
+writable and configurable. Everything they need is reachable from outside the package —
+`@root/acme/utils.js` exports `_jwsRequest`, `@root/acme/errors.js` the error constructors,
+`@root/encoding/bytes.js` the buffer helpers — so a consumer can assign the 3.1.1 versions over the
+3.1.0 ones before calling `ACME.create()`.
+
+That needs no network, no `postinstall`, no mutation of `node_modules`, and it survives
+`npm ci --ignore-scripts`. Verified against **unpatched** 3.1.0 (`grep -c 'function finalizeOrder'`
+→ 0) with the replacement injected through `node --require`:
+
+| Certificate         | Authorization                          | Result         |
+| ------------------- | -------------------------------------- | -------------- |
+| `*.winkler.tel`     | reused, so only finalization exercised | issued in 61 s |
+| `probe.winkler.tel` | fresh, so the full challenge cycle ran | issued in 61 s |
+
+The second row matters: a name never authorized before forces the challenge trigger that answers
+409 on 3.1.0, so both fixes are covered, not just the finalization one.
+
+The cost is that the consumer then carries about 180 lines of somebody else's code, copied from a
+release that was tagged and never shipped, and has to remember to drop it if the library is ever
+replaced or updated. Which is a real liability, and exactly why the choice belongs to whoever
+maintains the consumer rather than to whoever noticed the bug.
+
 None of that is this package's problem to solve, and none of it blocks it: the plugin implements
 ACME.js' documented challenge interface, and does so correctly whichever version of ACME.js is
 driving it.
