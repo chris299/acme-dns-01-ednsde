@@ -14,6 +14,10 @@ on:
         description: Record prefix to test (empty = random single label)
         required: false
         default: ''
+      appear_budget:
+        description: How long to wait for a record to appear, in ms
+        required: false
+        default: '180000'
 
 permissions:
   contents: read
@@ -33,6 +37,7 @@ jobs:
           EDNS_TOKEN: ${{ secrets.EDNS_TOKEN }}
           ZONE: ${{ inputs.zone }}
           PREFIX: ${{ inputs.prefix }}
+          MEASURE_APPEAR_BUDGET: ${{ inputs.appear_budget }}
         run: |
           if [ -z "$EDNS_TOKEN" ]; then
             echo "The EDNS_TOKEN repository secret is not set."

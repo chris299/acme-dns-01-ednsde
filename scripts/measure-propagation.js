@@ -26,7 +26,7 @@ const { createDnsClient } = require('../lib/dns');
 const { toAscii } = require('../lib/names');
 
 const POLL_INTERVAL = 2000;
-const APPEAR_BUDGET = 180000;
+const APPEAR_BUDGET = Number(process.env.MEASURE_APPEAR_BUDGET || 180000);
 // Removal takes about the record TTL, which is longer than a CI job should sit
 // idle. We watch a short while and report what we saw rather than waiting it out.
 const DISAPPEAR_BUDGET = 60000;
