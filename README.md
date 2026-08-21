@@ -169,6 +169,32 @@ The compliance harness runs against a real zone and a real token, and is therefo
 EDNS_TOKEN=... npm run test:integration winkler.tel
 ```
 
+It takes about six minutes, and nothing is wrong when it does: it tests three names, two of which
+share one `_acme-challenge` host, so one of them waits out the 300 s record cache described above.
+
+The harness proves records get set, read and removed. It does not prove a certificate comes out — it
+never talks to a CA. That is a separate run against Let's Encrypt's staging environment, which
+mirrors how ioBroker.acme drives ACME.js:
+
+```bash
+EDNS_TOKEN=... ACME_EMAIL=you@example.com npm run test:certificate winkler.tel '*.winkler.tel'
+```
+
+Apex plus wildcard is the interesting request: both challenges land on one name with different
+values.
+
+## Development
+
+`.vscode/launch.json` has configurations for the unit tests, the harness with real and with
+shortened timings, the propagation measurement and the certificate run. Breakpoints in
+`lib/presenter.js` at `waitDirectly` and `waitThroughResolver` are where the waiting happens.
+`integration.js` accepts `EDNS_PROPAGATION_TIMEOUT`, `EDNS_PROPAGATION_INTERVAL` and
+`EDNS_SHARED_NAME_TIMEOUT` so stepping through a wait does not mean sitting out a real cache expiry.
+The library itself keeps its own defaults.
+
+Note that `get()` is never called by ACME.js — only by the test harness. If you are stepping through
+a real issuance, do not wait for it.
+
 ## Documentation
 
 - [CONTEXT.md](CONTEXT.md) — the vocabulary this package uses, and what it deliberately avoids
