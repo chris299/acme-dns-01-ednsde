@@ -1,0 +1,43 @@
+name: Staging certificate
+
+# The end-to-end proof: a real certificate from Let's Encrypt's staging CA,
+# with this plugin answering the dns-01 challenges. Manual only -- it uses a
+# real token, writes to a real zone, and registers an ACME account.
+on:
+  workflow_dispatch:
+    inputs:
+      domains:
+        description: Domains for the certificate, space separated
+        required: true
+        default: winkler.tel *.winkler.tel
+
+permissions:
+  contents: read
+
+jobs:
+  certificate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - run: npm install
+
+      - name: issue a staging certificate
+        env:
+          EDNS_TOKEN: ${{ secrets.EDNS_TOKEN }}
+          ACME_EMAIL: ${{ secrets.ACME_EMAIL }}
+          DOMAINS: ${{ inputs.domains }}
+        run: |
+          for name in EDNS_TOKEN ACME_EMAIL; do
+            if [ -z "${!name}" ]; then
+              echo "The $name repository secret is not set."
+              exit 1
+            fi
+          done
+          # shellcheck disable=SC2086
+          node scripts/issue-staging-certificate.js $DOMAINS

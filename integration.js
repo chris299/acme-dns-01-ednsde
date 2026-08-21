@@ -22,7 +22,15 @@ if (!token) {
 	process.exit(2);
 }
 
-const challenger = require('./index.js').create({ token });
+// The propagation timings are overridable here, and only here, so that a
+// step-through in a debugger does not have to sit out a real 300s cache. The
+// library keeps its own defaults.
+const challenger = require('./index.js').create({
+	token,
+	propagationTimeout: Number(process.env.EDNS_PROPAGATION_TIMEOUT) || undefined,
+	propagationInterval: Number(process.env.EDNS_PROPAGATION_INTERVAL) || undefined,
+	sharedNameTimeout: Number(process.env.EDNS_SHARED_NAME_TIMEOUT) || undefined,
+});
 
 // testZone exercises three names -- the apex, a subdomain, and a wildcard over
 // that subdomain. The last two share one challenge host with two different

@@ -1,0 +1,64 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Unit tests",
+      "type": "node",
+      "request": "launch",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["--test"],
+      "cwd": "${workspaceFolder}",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Compliance harness (fast timings, for stepping)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/integration.js",
+      "args": ["winkler.tel"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "env": {
+        "EDNS_PROPAGATION_TIMEOUT": "20000",
+        "EDNS_PROPAGATION_INTERVAL": "2000",
+        "EDNS_SHARED_NAME_TIMEOUT": "30000"
+      },
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Compliance harness (real timings)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/integration.js",
+      "args": ["winkler.tel"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Measure propagation",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/measure-propagation.js",
+      "args": ["winkler.tel", "_debug", "_debug"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    },
+    {
+      "name": "Staging certificate (needs ACME_EMAIL in .env)",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/issue-staging-certificate.js",
+      "args": ["winkler.tel", "*.winkler.tel"],
+      "cwd": "${workspaceFolder}",
+      "envFile": "${workspaceFolder}/.env",
+      "console": "integratedTerminal",
+      "skipFiles": ["<node_internals>/**"]
+    }
+  ]
+}
