@@ -183,12 +183,18 @@ EDNS_TOKEN=... ACME_EMAIL=you@example.com npm run test:certificate winkler.tel '
 Apex plus wildcard is the interesting request: both challenges land on one name with different
 values.
 
-That run currently stops short of a certificate, and not because of this plugin: ACME.js re-sends
-both the challenge trigger and the order finalization, and today's Boulder rejects the repeats with
-409 and 403. Let's Encrypt does validate the TXT records this plugin publishes — the challenge
-reaches `valid` — and the client then trips over its own bookkeeping. The mechanism, the evidence and
-the one-line mitigation for the first of the two are in
-[docs/acme-js-incompatibilities.md](docs/acme-js-incompatibilities.md).
+That run needs `@root/acme` **3.1.1**, which exists as a git tag and was never published to npm; the
+published 3.1.0 re-sends both the challenge trigger and the order finalization, and today's Boulder
+rejects the repeats with 409 and 403. Fetch it first:
+
+```bash
+npm run acme:fixed
+```
+
+It is kept out of `package.json` on purpose — that git host is not reliably reachable, and no other
+test should depend on it. The mechanism and the evidence are in
+[docs/acme-js-incompatibilities.md](docs/acme-js-incompatibilities.md); it matters to anyone using
+ACME.js from npm, not only to this plugin.
 
 ## Development
 

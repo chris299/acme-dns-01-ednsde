@@ -1,11 +1,12 @@
 # ACME.js against today's Let's Encrypt
 
-`scripts/issue-staging-certificate.js` currently does not get a certificate, and the reason is not
-in this package. ACME.js (`acme@3.0.3` → `@root/acme@3.1.0`, unchanged since April 2022) re-sends two
-requests that current Boulder rejects. Both are races, which is why they bite some people and not
-others, and why the ioBroker adapter appears to work until it doesn't.
+**Resolved, and not by us: the fix already exists upstream and was never published.** Keep reading
+only if you need the detail; the summary is that `@root/acme` **3.1.1** in git fixes both problems and
+npm still serves **3.1.0**.
 
-Recorded here because the failure looks like a plugin bug and is not one: in both places the
+The version npm hands you re-sends two requests that current Boulder rejects. Both are races, which
+is why they bite some people and not others, and why the ioBroker adapter appears to work until it
+doesn't. Recorded here because the failure looks like a plugin bug and is not one: in both places the
 challenge plugin has already finished and is never consulted again.
 
 ## 1. The challenge trigger, answered with 409
@@ -59,6 +60,54 @@ adapter version issues certificates for some users and not others.
 This is [ioBroker.acme issue #49](https://github.com/iobroker-community-adapters/ioBroker.acme/issues/49)
 verbatim, open since 2023.
 
+## The fix: @root/acme 3.1.1, tagged but unpublished
+
+The [acme.js repository](https://git.rootprojects.org/root/acme.js) is at **3.1.1**
+(tag `v3.1.1`, commit `45fd6962f259c6399de05589848d68be42894316`). The commit before it —
+`0aa939a2`, _"Bug fix: Polling status using POST-as-GET wherever possible"_, 2021-04-08, merged from
+`sam-lord` — fixes exactly the two failures above:
+
+- `_postChallenge`: a `pending` challenge now goes to `pollStatus` (POST-as-GET) instead of
+  triggering the challenge a second time.
+- `_pollOrderStatus`: split into `finalizeOrder()`, which POSTs the CSR once, and `pollStatus()`,
+  which POST-as-GETs `order._orderUrl` as RFC 8555 §7.4 asks.
+
+It was tagged in May 2021 and never published to npm. So there is nothing to invent and nothing to
+fork — the working code exists. Verified end to end against Let's Encrypt staging with 3.1.1 in
+place: `pending` → `valid` for the challenge, `processing` → `valid` for the order, and a certificate
+`CN=*.winkler.tel` issued by `(STAGING) Dastardly Durum YR1`.
+
+## Depending on it is the hard part
+
+Pointing npm at the git tag works, and is fragile. The first attempt installed fine; the second
+failed outright:
+
+```
+npm error fatal: unable to access 'https://git.rootprojects.org/root/acme.js.git/':
+gnutls_handshake() failed: The TLS connection was non-properly terminated.
+```
+
+That Gitea is one self-hosted server, and a dependency on it turns every install into a coin flip.
+This repository therefore keeps it out of `package.json` altogether: `npm run acme:fixed` fetches it
+on demand, and only the certificate workflow does so, with retries. Nothing else — not the unit
+tests, not the compliance harness, not a consumer of this package — ever reaches for it.
+
+For ioBroker.acme the same approach is not available: its users install the adapter, not a workflow.
+The realistic options there, in increasing order of commitment:
+
+1. **Publish 3.1.1 to npm under a scoped name** and depend on that. It is the upstream author's own
+   tagged release, unmodified, MPL-2.0, so this is redistribution rather than a fork — but somebody
+   has to own the namespace.
+2. **Vendor the patched file** in the adapter, with its licence. No new dependency, but a copy to
+   keep track of.
+3. **Replace ACME.js**, which is what the maintainers already prefer in
+   [issue #169](https://github.com/iobroker-community-adapters/ioBroker.acme/issues/169), with
+   `acme-client` named as the candidate.
+
+None of that is this package's problem to solve, and none of it blocks it: the plugin implements
+ACME.js' documented challenge interface, and does so correctly whichever version of ACME.js is
+driving it.
+
 ## What this means for this package
 
 Nothing about the DNS side is in doubt. The debug log of a failing run shows the plugin handed ACME.js
@@ -71,10 +120,8 @@ dnsPrefix: _acme-challenge
 keyAuthorizationDigest: phQ5dRfRi0XFo8uDOEWFWXBSckvieu0njIhn_pz8pro
 ```
 
-and with mitigation 1 in place the challenge reaches `valid`, meaning Let's Encrypt itself looked up
-the TXT record this plugin had published and accepted it. That is the strongest statement about the
-plugin the staging run can make; what fails afterwards is the client's bookkeeping around the
-certificate it has already earned.
+and with 3.1.1 in place a certificate comes out. Even before that, the challenge reached `valid`,
+meaning Let's Encrypt itself looked up the TXT record this plugin had published and accepted it.
 
 The adapter's maintainers know the library is a problem —
 [issue #169](https://github.com/iobroker-community-adapters/ioBroker.acme/issues/169) discusses
