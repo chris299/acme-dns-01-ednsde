@@ -575,3 +575,90 @@ test('the shared-name timeout explains itself in the failure message', async () 
 		{ propagationTimeout: 40, sharedNameTimeout: 120 },
 	);
 });
+
+test('the log option reports what the waiting is waiting for', async () => {
+	const lines = [];
+	await withPresenter(
+		baseDnsSpec(servingEverywhere(HOST, [DIGEST])),
+		body =>
+			body.action === 'removeChallengeRecord'
+				? ok('removeChallengeRecord', 3, 'removed')
+				: ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) });
+			await presenter.remove({ challenge: challenge({ dnsZone: 'example.com' }) });
+
+			const joined = lines.join('\n');
+			assert.match(joined, new RegExp(`adding TXT ${HOST} = ${DIGEST}`));
+			assert.match(joined, /waiting up to \d+s for .* authoritative nameserver/);
+			assert.match(
+				joined,
+				/serves the expected value on 2 of 2 nameserver\(s\) after \d+s/,
+			);
+			assert.match(joined, new RegExp(`removed TXT ${HOST} = ${DIGEST}`));
+		},
+		{ log: line => lines.push(line) },
+	);
+});
+
+test('the log names the record cache when a name is shared', async () => {
+	const lines = [];
+	// Only the foreign value at first, ours a few rounds later: that is what
+	// eDNS' 300s record cache looks like from the outside.
+	const txt = {};
+	for (const server of NS) {
+		txt[`${server}|${HOST}`] = count =>
+			count >= 3 ? [OTHER_DIGEST, DIGEST] : [OTHER_DIGEST];
+	}
+	await withPresenter(
+		baseDnsSpec(txt),
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) });
+			assert.match(
+				lines.join(' | '),
+				/already carries other values.*300s record cache/,
+			);
+		},
+		{
+			log: line => lines.push(line),
+			propagationTimeout: 40,
+			sharedNameTimeout: 2000,
+		},
+	);
+});
+
+test('the log says so when it has to fall back to the resolver', async () => {
+	const lines = [];
+	const txt = {
+		[`10.0.0.3|${HOST}`]: dnsError('ETIMEOUT'),
+		[`10.0.0.4|${HOST}`]: dnsError('ETIMEOUT'),
+		[`system|${HOST}`]: [DIGEST],
+	};
+	await withPresenter(
+		baseDnsSpec(txt),
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) });
+			const joined = lines.join('\n');
+			assert.match(joined, /appears to block outbound DNS, falling back/);
+			assert.match(joined, /asking the configured resolver/);
+			assert.match(joined, /visible through the configured resolver/);
+		},
+		{ log: line => lines.push(line), fallbackFirstQuery: 20 },
+	);
+});
+
+test('a non-function log option is ignored rather than crashing', async () => {
+	await withPresenter(
+		baseDnsSpec(servingEverywhere(HOST, [DIGEST])),
+		() => ok('addChallengeRecord', 1, 'added'),
+		async ({ presenter }) => {
+			assert.equal(
+				await presenter.set({ challenge: challenge({ dnsZone: 'example.com' }) }),
+				true,
+			);
+		},
+		{ log: 'debug' },
+	);
+});

@@ -38,6 +38,13 @@ export interface Options {
 
 	/** How long between propagation checks. Default 2000. */
 	propagationInterval?: number;
+
+	/**
+	 * Where to report progress. Waiting for DNS takes minutes, and without this
+	 * the plugin says nothing at all, which is hard to tell from a hang. Silent
+	 * when omitted: nothing is ever written to stdout uninvited.
+	 */
+	log?: (message: string) => void;
 }
 
 export interface Presenter {

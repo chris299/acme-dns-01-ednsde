@@ -92,6 +92,7 @@ their own propagation delay on top: slower, but correct.
 | `zones`               | —        | Zones to use instead of determining the zone cut over DNS               |
 | `propagationTimeout`  | `120000` | How long to wait for the record to reach every authoritative nameserver |
 | `propagationInterval` | `2000`   | How long between propagation checks                                     |
+| `log`                 | —        | `(message) => void` for progress; silent when omitted                   |
 
 `zones` is an escape hatch, not something you normally set. The eDNS challenge API has no endpoint
 that lists zones, so the plugin finds the zone cut by walking up from the challenge name to the
@@ -149,6 +150,32 @@ web interface are reported as not found.
 **Several values may share one name.** That is what a SAN certificate covering both `example.com`
 and `*.example.com` needs, and it works. `get()` matches on the exact expected value rather than on
 whatever TXT record happens to come first.
+
+**It is silent unless you give it a `log`.** Waiting for DNS takes tens of seconds at best and five
+minutes in the shared-name case above, and a library that writes to stdout uninvited is a nuisance —
+so by default nothing is reported, which is unfortunately hard to tell from a hang. Pass `log` and it
+says what it is waiting for, how long it will wait, and why:
+
+```js
+const dns01 = require('acme-dns-01-ednsde').create({
+  token: process.env.EDNS_TOKEN,
+  log: message => console.log(`[dns-01] ${message}`),
+});
+```
+
+**Records from an abandoned run are not cleaned up for you.** The plugin removes a record itself only
+when its own propagation wait fails. If the ACME client dies later — between a successful `set()` and
+the `remove()` it owes — the value stays, and because eDNS then answers that name from its cache
+every later issuance pays the 300 s penalty above. To clear one out, read the values and delete the
+ones you recognise:
+
+```bash
+dig +short TXT _acme-challenge.example.com
+node -e "require('acme-dns-01-ednsde/lib/api').createApiClient({token:process.env.EDNS_TOKEN})
+  .remove('example.com','_acme-challenge','<the value>').then(console.log)"
+```
+
+Deleting something that is not there is not an error, so this is safe to repeat.
 
 **Internationalised domains are converted to A-labels** before any DNS query or API call.
 

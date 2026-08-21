@@ -1,6 +1,6 @@
 {
   "name": "acme-dns-01-ednsde",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "eDNS.de DNS-01 challenge plugin for ACME.js, Greenlock.js and the ioBroker ACME adapter — Let's Encrypt certificates, wildcards included, for zones hosted at edns.de",
   "main": "index.js",
   "types": "index.d.ts",
