@@ -183,6 +183,13 @@ EDNS_TOKEN=... ACME_EMAIL=you@example.com npm run test:certificate winkler.tel '
 Apex plus wildcard is the interesting request: both challenges land on one name with different
 values.
 
+That run currently stops short of a certificate, and not because of this plugin: ACME.js re-sends
+both the challenge trigger and the order finalization, and today's Boulder rejects the repeats with
+409 and 403. Let's Encrypt does validate the TXT records this plugin publishes — the challenge
+reaches `valid` — and the client then trips over its own bookkeeping. The mechanism, the evidence and
+the one-line mitigation for the first of the two are in
+[docs/acme-js-incompatibilities.md](docs/acme-js-incompatibilities.md).
+
 ## Development
 
 `.vscode/launch.json` has configurations for the unit tests, the harness with real and with
